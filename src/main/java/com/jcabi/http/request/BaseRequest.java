@@ -46,6 +46,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Map;
@@ -54,7 +55,6 @@ import javax.json.JsonStructure;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.core.UriBuilder;
 import lombok.EqualsAndHashCode;
-import org.apache.commons.io.Charsets;
 
 /**
  * Base implementation of {@link Request}.
@@ -81,6 +81,11 @@ final class BaseRequest implements Request {
      * An empty immutable {@code byte} array.
      */
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+
+    /**
+     * The Charset to use.
+     */
+    private static final Charset CHARSET = Charset.forName(ENCODING);
 
     /**
      * Wire to use.
@@ -113,11 +118,7 @@ final class BaseRequest implements Request {
      * @param uri The resource to work with
      */
     BaseRequest(final Wire wre, final String uri) {
-        this(
-            wre, uri,
-            new Array<Map.Entry<String, String>>(),
-            Request.GET, BaseRequest.EMPTY_BYTE_ARRAY
-        );
+        this(wre, uri, new Array<Map.Entry<String, String>>(), Request.GET, BaseRequest.EMPTY_BYTE_ARRAY);
     }
 
     /**
@@ -129,9 +130,7 @@ final class BaseRequest implements Request {
      * @param body HTTP request body
      * @checkstyle ParameterNumber (5 lines)
      */
-    BaseRequest(final Wire wre, final String uri,
-        final Iterable<Map.Entry<String, String>> headers,
-        final String method, final byte[] body) {
+    BaseRequest(final Wire wre, final String uri, final Iterable<Map.Entry<String, String>> headers, final String method, final byte[] body) {
         this.wire = wre;
         URI addr = URI.create(uri);
         if (addr.getPath().isEmpty()) {
@@ -150,36 +149,20 @@ final class BaseRequest implements Request {
     }
 
     @Override
-    public Request header(
-        @NotNull(message = "header name can't be NULL") final String name,
-        @NotNull(message = "header value can't be NULL") final Object value) {
-        return new BaseRequest(
-            this.wire,
-            this.home,
-            this.hdrs.with(new ImmutableHeader(name, value.toString())),
-            this.mtd,
-            this.content
-        );
+    public Request header(@NotNull(message = "header name can't be NULL") final String name, @NotNull(message = "header value can't be NULL") final Object value) {
+        return new BaseRequest(this.wire, this.home, this.hdrs.with(new ImmutableHeader(name, value.toString())), this.mtd, this.content);
     }
 
     @Override
-    public Request reset(
-        @NotNull(message = "header name can't be NULL") final String name) {
-        final Collection<Map.Entry<String, String>> headers =
-            new LinkedList<Map.Entry<String, String>>();
+    public Request reset(@NotNull(message = "header name can't be NULL") final String name) {
+        final Collection<Map.Entry<String, String>> headers = new LinkedList<Map.Entry<String, String>>();
         final String key = ImmutableHeader.normalize(name);
         for (final Map.Entry<String, String> header : this.hdrs) {
             if (!header.getKey().equals(key)) {
                 headers.add(header);
             }
         }
-        return new BaseRequest(
-            this.wire,
-            this.home,
-            headers,
-            this.mtd,
-            this.content
-        );
+        return new BaseRequest(this.wire, this.home, headers, this.mtd, this.content);
     }
 
     @Override
@@ -188,42 +171,21 @@ final class BaseRequest implements Request {
     }
 
     @Override
-    public Request method(
-        @NotNull(message = "method can't be NULL") final String method) {
-        return new BaseRequest(
-            this.wire,
-            this.home,
-            this.hdrs,
-            method,
-            this.content
-        );
+    public Request method(@NotNull(message = "method can't be NULL") final String method) {
+        return new BaseRequest(this.wire, this.home, this.hdrs, method, this.content);
     }
 
     @Override
     public Response fetch() throws IOException {
         final long start = System.currentTimeMillis();
-        final Response response = this.wire.send(
-            this, this.home, this.mtd,
-            this.hdrs, this.content
-        );
+        final Response response = this.wire.send(this, this.home, this.mtd, this.hdrs, this.content);
         final URI uri = URI.create(this.home);
-        Logger.info(
-            this,
-            "#fetch(%s %s:%d %s): [%d %s] in %[ms]s",
-            this.mtd,
-            uri.getHost(),
-            uri.getPort(),
-            uri.getPath(),
-            response.status(),
-            response.reason(),
-            System.currentTimeMillis() - start
-        );
+        Logger.info(this, "#fetch(%s %s:%d %s): [%d %s] in %[ms]s", this.mtd, uri.getHost(), uri.getPort(), uri.getPath(), response.status(), response.reason(), System.currentTimeMillis() - start);
         return response;
     }
 
     @Override
-    public <T extends Wire> Request through(final Class<T> type,
-        final Object... args) {
+    public <T extends Wire> Request through(final Class<T> type, final Object... args) {
         Constructor<?> ctor = null;
         for (final Constructor<?> opt : type.getDeclaredConstructors()) {
             if (opt.getParameterTypes().length == args.length + 1) {
@@ -232,12 +194,7 @@ final class BaseRequest implements Request {
             }
         }
         if (ctor == null) {
-            throw new IllegalArgumentException(
-                String.format(
-                    "class %s doesn't have a ctor with %d argument(s)",
-                    type.getName(), args.length
-                )
-            );
+            throw new IllegalArgumentException(String.format("class %s doesn't have a ctor with %d argument(s)", type.getName(), args.length));
         }
         final Object[] params = new Object[args.length + 1];
         params[0] = this.wire;
@@ -252,36 +209,17 @@ final class BaseRequest implements Request {
         } catch (final InvocationTargetException ex) {
             throw new IllegalStateException(ex);
         }
-        return new BaseRequest(
-            decorated,
-            this.home,
-            this.hdrs,
-            this.mtd,
-            this.content
-        );
+        return new BaseRequest(decorated, this.home, this.hdrs, this.mtd, this.content);
     }
 
     @Override
     public String toString() {
         final URI uri = URI.create(this.home);
-        final StringBuilder text = new StringBuilder("HTTP/1.1 ")
-            .append(this.mtd).append(' ')
-            .append(uri.getPath())
-            .append(" (")
-            .append(uri.getHost())
-            .append(")\n");
+        final StringBuilder text = new StringBuilder("HTTP/1.1 ").append(this.mtd).append(' ').append(uri.getPath()).append(" (").append(uri.getHost()).append(")\n");
         for (final Map.Entry<String, String> header : this.hdrs) {
-            text.append(
-                Logger.format(
-                    "%s: %s\n",
-                    header.getKey(),
-                    header.getValue()
-                )
-            );
+            text.append(Logger.format("%s: %s\n", header.getKey(), header.getValue()));
         }
-        return text.append('\n')
-            .append(RequestBody.Printable.toString(this.content))
-            .toString();
+        return text.append('\n').append(RequestBody.Printable.toString(this.content)).toString();
     }
 
     /**
@@ -291,14 +229,17 @@ final class BaseRequest implements Request {
     @EqualsAndHashCode(of = "address")
     @Loggable(Loggable.DEBUG)
     private static final class BaseURI implements RequestURI {
+
         /**
          * URI encapsulated.
          */
         private final transient String address;
+
         /**
          * Base request encapsulated.
          */
         private final transient BaseRequest owner;
+
         /**
          * Public ctor.
          * @param req Request
@@ -308,43 +249,34 @@ final class BaseRequest implements Request {
             this.owner = req;
             this.address = uri;
         }
+
         @Override
         public String toString() {
             return this.address;
         }
+
         @Override
         public Request back() {
-            return new BaseRequest(
-                this.owner.wire,
-                this.address,
-                this.owner.hdrs,
-                this.owner.mtd,
-                this.owner.content
-            );
+            return new BaseRequest(this.owner.wire, this.address, this.owner.hdrs, this.owner.mtd, this.owner.content);
         }
+
         @Override
         public URI get() {
             return URI.create(this.owner.home);
         }
+
         @Override
-        public RequestURI set(@NotNull(message = "URI can't be NULL")
-            final URI uri) {
+        public RequestURI set(@NotNull(message = "URI can't be NULL") final URI uri) {
             return new BaseRequest.BaseURI(this.owner, uri.toString());
         }
+
         @Override
-        public RequestURI queryParam(
-            @NotNull(message = "param name can't be NULL") final String name,
-            @NotNull(message = "value can't be NULL") final Object value) {
-            return new BaseRequest.BaseURI(
-                this.owner,
-                UriBuilder.fromUri(this.address)
-                    .queryParam(name, "{value}")
-                    .build(value).toString()
-            );
+        public RequestURI queryParam(@NotNull(message = "param name can't be NULL") final String name, @NotNull(message = "value can't be NULL") final Object value) {
+            return new BaseRequest.BaseURI(this.owner, UriBuilder.fromUri(this.address).queryParam(name, "{value}").build(value).toString());
         }
+
         @Override
-        public RequestURI queryParams(@NotNull(message = "map can't be NULL")
-            final Map<String, String> map) {
+        public RequestURI queryParams(@NotNull(message = "map can't be NULL") final Map<String, String> map) {
             final UriBuilder uri = UriBuilder.fromUri(this.address);
             final Object[] values = new Object[map.size()];
             int idx = 0;
@@ -353,38 +285,22 @@ final class BaseRequest implements Request {
                 values[idx] = pair.getValue();
                 ++idx;
             }
-            return new BaseRequest.BaseURI(
-                this.owner,
-                uri.build(values).toString()
-            );
+            return new BaseRequest.BaseURI(this.owner, uri.build(values).toString());
         }
+
         @Override
-        public RequestURI path(
-            @NotNull(message = "path can't be NULL") final String segment) {
-            return new BaseRequest.BaseURI(
-                this.owner,
-                UriBuilder.fromUri(this.address)
-                    .path(segment)
-                    .build().toString()
-            );
+        public RequestURI path(@NotNull(message = "path can't be NULL") final String segment) {
+            return new BaseRequest.BaseURI(this.owner, UriBuilder.fromUri(this.address).path(segment).build().toString());
         }
+
         @Override
-        public RequestURI userInfo(
-            @NotNull(message = "info can't be NULL") final String info) {
-            return new BaseRequest.BaseURI(
-                this.owner,
-                UriBuilder.fromUri(this.address)
-                    .userInfo(info)
-                    .build().toString()
-            );
+        public RequestURI userInfo(@NotNull(message = "info can't be NULL") final String info) {
+            return new BaseRequest.BaseURI(this.owner, UriBuilder.fromUri(this.address).userInfo(info).build().toString());
         }
+
         @Override
         public RequestURI port(final int num) {
-            return new BaseRequest.BaseURI(
-                this.owner,
-                UriBuilder.fromUri(this.address)
-                    .port(num).build().toString()
-            );
+            return new BaseRequest.BaseURI(this.owner, UriBuilder.fromUri(this.address).port(num).build().toString());
         }
     }
 
@@ -395,14 +311,14 @@ final class BaseRequest implements Request {
     @EqualsAndHashCode(of = "text")
     @Loggable(Loggable.DEBUG)
     private static final class BaseBody implements RequestBody {
+
         /**
          * Content encapsulated.
          */
         private final transient byte[] text;
-        /**
-         * Base request encapsulated.
-         */
+
         private final transient BaseRequest owner;
+
         /**
          * Public ctor.
          * @param req Request
@@ -412,69 +328,50 @@ final class BaseRequest implements Request {
             this.owner = req;
             this.text = body.clone();
         }
+
         @Override
         public String toString() {
             return RequestBody.Printable.toString(this.text);
         }
+
         @Override
         public Request back() {
-            return new BaseRequest(
-                this.owner.wire,
-                this.owner.home,
-                this.owner.hdrs,
-                this.owner.mtd,
-                this.text
-            );
+            return new BaseRequest(this.owner.wire, this.owner.home, this.owner.hdrs, this.owner.mtd, this.text);
         }
+
         @Override
         public String get() {
-            return new String(this.text, Charsets.UTF_8);
+            return new String(this.text, BaseRequest.CHARSET);
         }
+
         @Override
-        public RequestBody set(@NotNull(message = "content can't be NULL")
-            final String txt) {
-            return this.set(txt.getBytes(Charsets.UTF_8));
+        public RequestBody set(@NotNull(message = "content can't be NULL") final String txt) {
+            return this.set(txt.getBytes(BaseRequest.CHARSET));
         }
+
         @Override
-        public RequestBody set(@NotNull(message = "JSON can't be NULL")
-            final JsonStructure json) {
+        public RequestBody set(@NotNull(message = "JSON can't be NULL") final JsonStructure json) {
             final StringWriter writer = new StringWriter();
             Json.createWriter(writer).write(json);
             return this.set(writer.toString());
         }
+
         @Override
-        public RequestBody set(@NotNull(message = "body can't be NULL")
-            final byte[] txt) {
+        public RequestBody set(@NotNull(message = "body can't be NULL") final byte[] txt) {
             return new BaseRequest.BaseBody(this.owner, txt);
         }
+
         @Override
-        public RequestBody formParam(
-            @NotNull(message = "name can't be NULL") final String name,
-            @NotNull(message = "value can't be NULL") final Object value) {
+        public RequestBody formParam(@NotNull(message = "name can't be NULL") final String name, @NotNull(message = "value can't be NULL") final Object value) {
             try {
-                return new BaseRequest.BaseBody(
-                    this.owner,
-                    new StringBuilder(this.get())
-                        .append(name)
-                        .append('=')
-                        .append(
-                            URLEncoder.encode(
-                                value.toString(),
-                                BaseRequest.ENCODING
-                            )
-                        )
-                        .append('&')
-                        .toString()
-                        .getBytes(Charsets.UTF_8)
-                );
+                return new BaseRequest.BaseBody(this.owner, new StringBuilder(this.get()).append(name).append('=').append(URLEncoder.encode(value.toString(), BaseRequest.ENCODING)).append('&').toString().getBytes(BaseRequest.CHARSET));
             } catch (final UnsupportedEncodingException ex) {
                 throw new IllegalStateException(ex);
             }
         }
+
         @Override
-        public RequestBody formParams(
-            @NotNull(message = "map of params can't be NULL")
-            final Map<String, String> params) {
+        public RequestBody formParams(@NotNull(message = "map of params can't be NULL") final Map<String, String> params) {
             RequestBody body = this;
             for (final Map.Entry<String, String> param : params.entrySet()) {
                 body = body.formParam(param.getKey(), param.getValue());
@@ -482,5 +379,4 @@ final class BaseRequest implements Request {
             return body;
         }
     }
-
 }

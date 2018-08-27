@@ -40,12 +40,12 @@ import com.jcabi.http.Wire;
 import com.jcabi.immutable.Array;
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import javax.validation.constraints.NotNull;
 import lombok.EqualsAndHashCode;
-import org.apache.commons.io.Charsets;
 
 /**
  * Implementation of {@link Request} that always returns the same
@@ -63,33 +63,28 @@ import org.apache.commons.io.Charsets;
 @Loggable(Loggable.DEBUG)
 @SuppressWarnings("PMD.TooManyMethods")
 public final class FakeRequest implements Request {
+
     /**
      * An empty immutable {@code byte} array.
      */
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
     /**
+     * The Charset to use.
+     */
+    private static final Charset CHARSET = Charset.forName("UTF-8");
+
+    /**
      * Base request.
      * @checkstyle ParameterNumber (15 lines)
      */
-    private final transient Request base = new BaseRequest(
-        new Wire() {
-            @Override
-            public Response send(final Request req, final String home,
-                final String method,
-                final Collection<Map.Entry<String, String>> headers,
-                final byte[] text) {
-                return new DefaultResponse(
-                    req,
-                    FakeRequest.this.code,
-                    FakeRequest.this.phrase,
-                    FakeRequest.this.hdrs,
-                    FakeRequest.this.content
-                );
-            }
-        },
-        "http://localhost:12345/see-FakeRequest-class"
-    );
+    private final transient Request base = new BaseRequest(new Wire() {
+
+        @Override
+        public Response send(final Request req, final String home, final String method, final Collection<Map.Entry<String, String>> headers, final byte[] text) {
+            return new DefaultResponse(req, FakeRequest.this.code, FakeRequest.this.phrase, FakeRequest.this.hdrs, FakeRequest.this.content);
+        }
+    }, "http://localhost:12345/see-FakeRequest-class");
 
     /**
      * Status code.
@@ -115,12 +110,7 @@ public final class FakeRequest implements Request {
      * Public ctor.
      */
     public FakeRequest() {
-        this(
-            HttpURLConnection.HTTP_OK,
-            "OK",
-            Collections.<Map.Entry<String, String>>emptyList(),
-            FakeRequest.EMPTY_BYTE_ARRAY
-        );
+        this(HttpURLConnection.HTTP_OK, "OK", Collections.<Map.Entry<String, String>>emptyList(), FakeRequest.EMPTY_BYTE_ARRAY);
     }
 
     /**
@@ -131,11 +121,7 @@ public final class FakeRequest implements Request {
      * @param body HTTP body
      * @checkstyle ParameterNumber (10 lines)
      */
-    public FakeRequest(final int status,
-        @NotNull(message = "HTTP reason can't be NULL") final String reason,
-        @NotNull(message = "list of headers can't be NULL")
-        final Collection<Map.Entry<String, String>> headers,
-        @NotNull(message = "body can't be NULL") final byte[] body) {
+    public FakeRequest(final int status, @NotNull(message = "HTTP reason can't be NULL") final String reason, @NotNull(message = "list of headers can't be NULL") final Collection<Map.Entry<String, String>> headers, @NotNull(message = "body can't be NULL") final byte[] body) {
         this.code = status;
         this.phrase = reason;
         this.hdrs = new Array<Map.Entry<String, String>>(headers);
@@ -154,15 +140,12 @@ public final class FakeRequest implements Request {
     }
 
     @Override
-    public Request header(
-        @NotNull(message = "header name can't be NULL") final String name,
-        @NotNull(message = "header value can't be NULL") final Object value) {
+    public Request header(@NotNull(message = "header name can't be NULL") final String name, @NotNull(message = "header value can't be NULL") final Object value) {
         return this.base.header(name, value);
     }
 
     @Override
-    public Request reset(
-        @NotNull(message = "header name can't be NULL") final String name) {
+    public Request reset(@NotNull(message = "header name can't be NULL") final String name) {
         return this.base.reset(name);
     }
 
@@ -172,8 +155,7 @@ public final class FakeRequest implements Request {
     }
 
     @Override
-    public Request method(
-        @NotNull(message = "method can't be NULL") final String method) {
+    public Request method(@NotNull(message = "method can't be NULL") final String method) {
         return this.base.method(method);
     }
 
@@ -183,8 +165,7 @@ public final class FakeRequest implements Request {
     }
 
     @Override
-    public <T extends Wire> Request through(final Class<T> type,
-        final Object... args) {
+    public <T extends Wire> Request through(final Class<T> type, final Object... args) {
         return this.base.through(type, args);
     }
 
@@ -194,12 +175,7 @@ public final class FakeRequest implements Request {
      * @return New request
      */
     public FakeRequest withStatus(final int status) {
-        return new FakeRequest(
-            status,
-            this.phrase,
-            this.hdrs,
-            this.content
-        );
+        return new FakeRequest(status, this.phrase, this.hdrs, this.content);
     }
 
     /**
@@ -208,12 +184,7 @@ public final class FakeRequest implements Request {
      * @return New request
      */
     public FakeRequest withReason(final String reason) {
-        return new FakeRequest(
-            this.code,
-            reason,
-            this.hdrs,
-            this.content
-        );
+        return new FakeRequest(this.code, reason, this.hdrs, this.content);
     }
 
     /**
@@ -223,12 +194,7 @@ public final class FakeRequest implements Request {
      * @return New request
      */
     public FakeRequest withHeader(final String name, final String value) {
-        return new FakeRequest(
-            this.code,
-            this.phrase,
-            this.hdrs.with(new ImmutableHeader(name, value)),
-            this.content
-        );
+        return new FakeRequest(this.code, this.phrase, this.hdrs.with(new ImmutableHeader(name, value)), this.content);
     }
 
     /**
@@ -237,7 +203,7 @@ public final class FakeRequest implements Request {
      * @return New request
      */
     public FakeRequest withBody(final String text) {
-        return this.withBody(text.getBytes(Charsets.UTF_8));
+        return this.withBody(text.getBytes(FakeRequest.CHARSET));
     }
 
     /**
@@ -246,12 +212,6 @@ public final class FakeRequest implements Request {
      * @return New request
      */
     public FakeRequest withBody(final byte[] body) {
-        return new FakeRequest(
-            this.code,
-            this.phrase,
-            this.hdrs,
-            body
-        );
+        return new FakeRequest(this.code, this.phrase, this.hdrs, body);
     }
-
 }

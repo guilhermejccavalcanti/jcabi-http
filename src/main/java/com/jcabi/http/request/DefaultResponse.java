@@ -37,6 +37,7 @@ import com.jcabi.http.Response;
 import com.jcabi.immutable.Array;
 import com.jcabi.log.Logger;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.Charset;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import javax.validation.constraints.NotNull;
 import lombok.EqualsAndHashCode;
-import org.apache.commons.io.Charsets;
 
 /**
  * Default implementation of {@link com.jcabi.http.Response}.
@@ -58,9 +58,14 @@ import org.apache.commons.io.Charsets;
 final class DefaultResponse implements Response {
 
     /**
+     * The Charset to use.
+     */
+    private static final Charset CHARSET = Charset.forName("UTF-8");
+
+    /**
      * UTF-8 error marker.
      */
-    private static final String ERR = "\uFFFD";
+    private static final String ERR = "�";
 
     /**
      * Request.
@@ -96,9 +101,7 @@ final class DefaultResponse implements Response {
      * @param body Body of HTTP response
      * @checkstyle ParameterNumber (5 lines)
      */
-    DefaultResponse(final Request request, final int status,
-        final String reason, final Array<Map.Entry<String, String>> headers,
-        final byte[] body) {
+    DefaultResponse(final Request request, final int status, final String reason, final Array<Map.Entry<String, String>> headers, final byte[] body) {
         this.req = request;
         this.code = status;
         this.phrase = reason;
@@ -125,8 +128,7 @@ final class DefaultResponse implements Response {
     @Override
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     public Map<String, List<String>> headers() {
-        final ConcurrentMap<String, List<String>> map =
-            new ConcurrentHashMap<String, List<String>>(0);
+        final ConcurrentMap<String, List<String>> map = new ConcurrentHashMap<String, List<String>>(0);
         for (final Map.Entry<String, String> header : this.hdrs) {
             map.putIfAbsent(header.getKey(), new LinkedList<String>());
             map.get(header.getKey()).add(header.getValue());
@@ -136,16 +138,9 @@ final class DefaultResponse implements Response {
 
     @Override
     public String body() {
-        final String body = new String(this.content, Charsets.UTF_8);
+        final String body = new String(this.content, DefaultResponse.CHARSET);
         if (body.contains(DefaultResponse.ERR)) {
-            throw new IllegalStateException(
-                Logger.format(
-                    "broken Unicode text at line #%d in '%[text]s' (%d bytes)",
-                    body.length() - body.replace("\n", "").length(),
-                    body,
-                    this.content.length
-                )
-            );
+            throw new IllegalStateException(Logger.format("broken Unicode text at line #%d in '%[text]s' (%d bytes)", body.length() - body.replace("\n", "").length(), body, this.content.length));
         }
         return body;
     }
@@ -154,6 +149,7 @@ final class DefaultResponse implements Response {
     public byte[] binary() {
         return this.content.clone();
     }
+
     /**
      * {@inheritDoc}
      * @checkstyle MethodName (4 lines)
@@ -162,8 +158,7 @@ final class DefaultResponse implements Response {
     @SuppressWarnings("PMD.ShortMethodName")
     public <T> T as(final Class<T> type) {
         try {
-            return type.getDeclaredConstructor(Response.class)
-                .newInstance(this);
+            return type.getDeclaredConstructor(Response.class).newInstance(this);
         } catch (final InstantiationException ex) {
             throw new IllegalStateException(ex);
         } catch (final IllegalAccessException ex) {
@@ -177,24 +172,10 @@ final class DefaultResponse implements Response {
 
     @Override
     public String toString() {
-        final StringBuilder text = new StringBuilder(0)
-            .append(this.code).append(' ')
-            .append(this.phrase)
-            .append(" [")
-            .append(this.back().uri().get())
-            .append("]\n");
+        final StringBuilder text = new StringBuilder(0).append(this.code).append(' ').append(this.phrase).append(" [").append(this.back().uri().get()).append("]\n");
         for (final Map.Entry<String, String> header : this.hdrs) {
-            text.append(
-                Logger.format(
-                    "%s: %s\n",
-                    header.getKey(),
-                    header.getValue()
-                )
-            );
+            text.append(Logger.format("%s: %s\n", header.getKey(), header.getValue()));
         }
-        return text.append('\n')
-            .append(RequestBody.Printable.toString(this.content))
-            .toString();
+        return text.append('\n').append(RequestBody.Printable.toString(this.content)).toString();
     }
-
 }

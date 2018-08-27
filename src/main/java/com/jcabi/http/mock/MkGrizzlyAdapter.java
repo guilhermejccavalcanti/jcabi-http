@@ -37,9 +37,9 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
+import java.nio.charset.Charset;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import org.apache.commons.io.Charsets;
 import org.apache.http.HttpHeaders;
 
 /**
@@ -57,21 +57,23 @@ final class MkGrizzlyAdapter extends GrizzlyAdapter {
     private static final String ENCODING = "UTF-8";
 
     /**
+     * The Charset to use.
+     */
+    private static final Charset CHARSET = Charset.forName(ENCODING);
+
+    /**
      * Queries received.
      */
-    private final transient Queue<MkQuery> queue =
-        new ConcurrentLinkedQueue<MkQuery>();
+    private final transient Queue<MkQuery> queue = new ConcurrentLinkedQueue<MkQuery>();
 
     /**
      * Answers to give.
      */
-    private final transient Queue<MkAnswer> answers =
-        new ConcurrentLinkedQueue<MkAnswer>();
+    private final transient Queue<MkAnswer> answers = new ConcurrentLinkedQueue<MkAnswer>();
 
     @Override
     @SuppressWarnings({ "PMD.AvoidCatchingThrowable", "rawtypes" })
-    public void service(final GrizzlyRequest request,
-        final GrizzlyResponse response) {
+    public void service(final GrizzlyRequest request, final GrizzlyResponse response) {
         try {
             this.queue.add(new GrizzlyQuery(request));
             final MkAnswer answer = this.answers.remove();
@@ -80,19 +82,12 @@ final class MkGrizzlyAdapter extends GrizzlyAdapter {
                     response.addHeader(name, value);
                 }
             }
-            response.addHeader(
-                HttpHeaders.SERVER,
-                String.format(
-                    "%s query #%d, %d answer(s) left",
-                    this.getClass().getName(),
-                    this.queue.size(), this.answers.size()
-                )
-            );
+            response.addHeader(HttpHeaders.SERVER, String.format("%s query #%d, %d answer(s) left", this.getClass().getName(), this.queue.size(), this.answers.size()));
             response.setStatus(answer.status());
-            final byte[] body = answer.body().getBytes(Charsets.UTF_8);
+            final byte[] body = answer.body().getBytes(MkGrizzlyAdapter.CHARSET);
             response.getStream().write(body);
             response.setContentLength(body.length);
-            // @checkstyle IllegalCatch (1 line)
+        // @checkstyle IllegalCatch (1 line)
         } catch (final Throwable ex) {
             MkGrizzlyAdapter.fail(response, ex);
         }
@@ -127,17 +122,11 @@ final class MkGrizzlyAdapter extends GrizzlyAdapter {
      * @param response The response to notify
      * @param failure The failure just happened
      */
-    private static void fail(final GrizzlyResponse<?> response,
-        final Throwable failure) {
+    private static void fail(final GrizzlyResponse<?> response, final Throwable failure) {
         response.setStatus(HttpURLConnection.HTTP_INTERNAL_ERROR);
         final PrintWriter writer;
         try {
-            writer = new PrintWriter(
-                new OutputStreamWriter(
-                    response.getStream(),
-                    MkGrizzlyAdapter.ENCODING
-                )
-            );
+            writer = new PrintWriter(new OutputStreamWriter(response.getStream(), MkGrizzlyAdapter.ENCODING));
         } catch (final UnsupportedEncodingException ex) {
             throw new IllegalStateException(ex);
         }
@@ -147,5 +136,4 @@ final class MkGrizzlyAdapter extends GrizzlyAdapter {
             writer.close();
         }
     }
-
 }

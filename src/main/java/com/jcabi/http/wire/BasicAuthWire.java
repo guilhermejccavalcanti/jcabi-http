@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Map;
@@ -47,7 +48,6 @@ import javax.ws.rs.core.HttpHeaders;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.io.Charsets;
 
 /**
  * Wire with HTTP basic authentication based on user info of URI.
@@ -81,6 +81,11 @@ public final class BasicAuthWire implements Wire {
     private static final String ENCODING = "UTF-8";
 
     /**
+     * The Charset to use.
+     */
+    private static final Charset CHARSET = Charset.forName(ENCODING);
+
+    /**
      * Original wire.
      */
     private final transient Wire origin;
@@ -89,8 +94,7 @@ public final class BasicAuthWire implements Wire {
      * Public ctor.
      * @param wire Original wire
      */
-    public BasicAuthWire(@NotNull(message = "wire can't be NULL")
-        final Wire wire) {
+    public BasicAuthWire(@NotNull(message = "wire can't be NULL") final Wire wire) {
         this.origin = wire;
     }
 
@@ -99,12 +103,8 @@ public final class BasicAuthWire implements Wire {
      * @checkstyle ParameterNumber (7 lines)
      */
     @Override
-    public Response send(final Request req, final String home,
-        final String method,
-        final Collection<Map.Entry<String, String>> headers,
-        final byte[] content) throws IOException {
-        final Collection<Map.Entry<String, String>> hdrs =
-            new LinkedList<Map.Entry<String, String>>();
+    public Response send(final Request req, final String home, final String method, final Collection<Map.Entry<String, String>> headers, final byte[] content) throws IOException {
+        final Collection<Map.Entry<String, String>> hdrs = new LinkedList<Map.Entry<String, String>>();
         boolean absent = true;
         for (final Map.Entry<String, String> header : headers) {
             if (header.getKey().equals(HttpHeaders.AUTHORIZATION)) {
@@ -116,25 +116,7 @@ public final class BasicAuthWire implements Wire {
         if (absent && info != null) {
             final String[] parts = info.split(":", 2);
             try {
-                hdrs.add(
-                    new ImmutableHeader(
-                        HttpHeaders.AUTHORIZATION,
-                        Logger.format(
-                            "Basic %s",
-                            Base64.encodeBase64String(
-                                Logger.format(
-                                    "%s:%s",
-                                    URLEncoder.encode(
-                                        parts[0], BasicAuthWire.ENCODING
-                                    ),
-                                    URLEncoder.encode(
-                                        parts[1], BasicAuthWire.ENCODING
-                                    )
-                                ).getBytes(Charsets.UTF_8)
-                            )
-                        )
-                    )
-                );
+                hdrs.add(new ImmutableHeader(HttpHeaders.AUTHORIZATION, Logger.format("Basic %s", Base64.encodeBase64String(Logger.format("%s:%s", URLEncoder.encode(parts[0], BasicAuthWire.ENCODING), URLEncoder.encode(parts[1], BasicAuthWire.ENCODING)).getBytes(BasicAuthWire.CHARSET)))));
             } catch (final UnsupportedEncodingException ex) {
                 throw new IllegalStateException(ex);
             }

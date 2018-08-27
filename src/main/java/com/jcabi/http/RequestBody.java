@@ -30,10 +30,10 @@
 package com.jcabi.http;
 
 import com.jcabi.aspects.Immutable;
+import java.nio.charset.Charset;
 import java.util.Map;
 import javax.json.JsonStructure;
 import javax.validation.constraints.NotNull;
-import org.apache.commons.io.Charsets;
 
 /**
  * Request body.
@@ -90,8 +90,7 @@ public interface RequestBody {
      * @since 0.11
      */
     @NotNull(message = "body is never NULL")
-    RequestBody set(@NotNull(message = "JSON structure can't be NULL")
-        JsonStructure json);
+    RequestBody set(@NotNull(message = "JSON structure can't be NULL") JsonStructure json);
 
     /**
      * Set byte array content.
@@ -108,9 +107,7 @@ public interface RequestBody {
      * @return New alternated body
      */
     @NotNull(message = "alternated body is never NULL")
-    RequestBody formParam(
-        @NotNull(message = "form param name can't be NULL") String name,
-        @NotNull(message = "form param value can't be NULL") Object value);
+    RequestBody formParam(@NotNull(message = "form param name can't be NULL") String name, @NotNull(message = "form param value can't be NULL") Object value);
 
     /**
      * Add form params.
@@ -119,21 +116,26 @@ public interface RequestBody {
      * @since 0.10
      */
     @NotNull(message = "alternated body is never NULL")
-    RequestBody formParams(
-        @NotNull(message = "map of params can't be NULL")
-        Map<String, String> params);
+    RequestBody formParams(@NotNull(message = "map of params can't be NULL") Map<String, String> params);
 
     /**
      * Printer of byte array.
      */
     @Immutable
     final class Printable {
+
+        /**
+         * The Charset to use.
+         */
+        private static final Charset CHARSET = Charset.forName("UTF-8");
+
         /**
          * Utility class.
          */
         private Printable() {
-            // intentionally empty
+        // intentionally empty
         }
+
         /**
          * Safely print byte array.
          * @param bytes Bytes to print
@@ -141,16 +143,14 @@ public interface RequestBody {
          */
         public static String toString(final byte[] bytes) {
             final StringBuilder text = new StringBuilder(0);
-            final char[] chrs = new String(bytes, Charsets.UTF_8).toCharArray();
+            final char[] chrs = new String(bytes, Printable.CHARSET).toCharArray();
             if (chrs.length > 0) {
                 for (final char chr : chrs) {
                     // @checkstyle MagicNumber (1 line)
                     if (chr < 128) {
                         text.append(chr);
                     } else {
-                        text.append("\\u").append(
-                            Integer.toHexString(chr)
-                        );
+                        text.append("\\u").append(Integer.toHexString(chr));
                     }
                 }
             } else {
@@ -159,5 +159,4 @@ public interface RequestBody {
             return text.toString();
         }
     }
-
 }
